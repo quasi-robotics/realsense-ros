@@ -192,9 +192,9 @@ Setting *unite_imu_method* creates a new topic, *imu*, that replaces the default
 ### Point Cloud
 Here is an example of how to start the camera node and make it publish the point cloud using the pointcloud option.
 ```bash
-ros2 launch realsense2_camera rs_launch.py filters:=pointcloud
+ros2 launch realsense2_camera demo_pointcloud_launch.py
 ```
-Then open rviz2 to watch the pointcloud:
+An rviz2 node opens to watch the pointcloud:
 <p align="center"><img src="https://user-images.githubusercontent.com/40540281/122672460-42dd3f80-d1d4-11eb-8767-4e61a64ced5b.gif" /></p>
 
 
@@ -234,6 +234,10 @@ Every realsense2_camera node is an independent process. One can 2 nodes using a 
 ```bash
 ros2 launch realsense2_camera rs_multi_camera_launch.py camera_name1:=my_D435 device_type1:=d435 camera_name2:=my_d415 device_type2:=d415
 ```
+or by specifying serial numbers and using default *camera1* and *camera2* node names:
+```
+ros2 launch realsense2_camera rs_multi_camera_launch.py serial_no1:=_036522070660 serial_no2:=_725112060349
+```
 or launch each from a separate terminal:
 ```bash
 ros2 launch realsense2_camera rs_launch.py camera_name:=my_d415 serial_no:=_036522070660
@@ -251,13 +255,28 @@ Notice the importance of defining a different camera_name for each node as this 
 To start the camera node in ROS:
 
 ```bash
-ros2 run realsense2_camera realsense2_camera_node --ros-args -p enable_pose:=true -p device_type:=t265 -p fisheye_width:=848 -p fisheye_height:=800
+ros2 launch realsense2_camera rs_t265_launch.py
 ```
 or, if you also have a d4xx connected, you can try out the launch file:
 ```bash
 ros2 launch realsense2_camera rs_d400_and_t265_launch.py enable_fisheye12:=true enable_fisheye22:=true
 ```
 - note: the parameters are called `enable_fisheye12` and `enable_fisheye22`. The node knows them as `enable_fisheye1` and `enable_fisheye2` but launch file runs 2 nodes and these parameters refer to the second one.
+
+To visualize the pose output and frames in RViz, start:
+```bash
+ros2 launch realsense2_camera demo_t265_launch.py
+```
+
+### realsense2_description package:
+For viewing included models, a separate package, realsense2_description, is included. For example:
+```bash
+ros2 launch realsense2_description view_model.launch.py model:=test_d415_camera.urdf.xacro
+```
+or, to list available models:
+```
+ros2 launch realsense2_description view_model.launch.py
+```
 
 ## Still on the pipeline:
 * Support ROS2 life cycle.
