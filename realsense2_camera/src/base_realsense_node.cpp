@@ -12,9 +12,11 @@ using namespace realsense2_camera;
 
 // stream_index_pair sip{stream_type, stream_index};
 #define STREAM_NAME(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << _stream_name[sip.first] << ((sip.second>0) ? std::to_string(sip.second) : ""))).str()
-#define FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_" << STREAM_NAME(sip) << "_frame")).str()
-#define OPTICAL_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_" << STREAM_NAME(sip) << "_optical_frame")).str()
-#define ALIGNED_DEPTH_TO_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << "camera_aligned_depth_to_" << STREAM_NAME(sip) << "_frame")).str()
+#define FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << getNamespaceStr() << "_" << STREAM_NAME(sip) << "_frame")).str()
+#define OPTICAL_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << getNamespaceStr() << "_" << STREAM_NAME(sip) << "_optical_frame")).str()
+#define ALIGNED_DEPTH_TO_FRAME_ID(sip) (static_cast<std::ostringstream&&>(std::ostringstream() << getNamespaceStr() << "_aligned_depth_to_" << STREAM_NAME(sip) << "_frame")).str()
+#define BASE_FRAME_ID() (static_cast<std::ostringstream&&>(std::ostringstream() << getNamespaceStr() << "_link")).str()
+#define ODOM_FRAME_ID() (static_cast<std::ostringstream&&>(std::ostringstream() << getNamespaceStr() << "_odom_frame")).str()
 
 
 std::vector<std::string> split(const std::string& s, char delimiter) // Thanks to Jonathan Boccara (https://www.fluentcpp.com/2017/04/21/how-to-split-a-string-in-c/)
@@ -173,6 +175,12 @@ size_t SyncedImuPublisher::getNumSubscribers()
 {
     if (!_publisher) return 0;
     return _publisher->get_subscription_count();
+}
+
+std::string BaseRealSenseNode::getNamespaceStr()
+{
+    auto ns = _node.get_namespace();
+    return ns;
 }
 
 static const rmw_qos_profile_t rmw_qos_profile_latched =
@@ -956,8 +964,8 @@ void BaseRealSenseNode::getParameters()
         param_name = "enable_" + STREAM_NAME(stream);
         setNgetNodeParameter(_enable[stream], param_name, ENABLE_IMU);
     }
-    setNgetNodeParameter(_base_frame_id, "base_frame_id", DEFAULT_BASE_FRAME_ID);
-    setNgetNodeParameter(_odom_frame_id, "odom_frame_id", DEFAULT_ODOM_FRAME_ID);
+    setNgetNodeParameter(_base_frame_id, "base_frame_id", BASE_FRAME_ID());
+    setNgetNodeParameter(_odom_frame_id, "odom_frame_id", ODOM_FRAME_ID());
 
     std::vector<stream_index_pair> streams(IMAGE_STREAMS);
     streams.insert(streams.end(), HID_STREAMS.begin(), HID_STREAMS.end());
@@ -1312,15 +1320,14 @@ void BaseRealSenseNode::enable_devices()
             for (auto& profile : profiles)
             {
                 auto video_profile = profile.as<rs2::video_stream_profile>();
-                ROS_DEBUG_STREAM("Sensor profile: " <<
-                                    "stream_type: " << rs2_stream_to_string(video_profile.stream_type()) << "(" << video_profile.stream_index() << ")" <<
-                                    "Format: " << video_profile.format() <<
-                                    ", Width: " << video_profile.width() <<
-                                    ", Height: " << video_profile.height() <<
-                                    ", FPS: " << video_profile.fps());
-
                 if (profile.stream_type() == elem.first && profile.stream_index() == elem.second)
                 {
+                    ROS_DEBUG_STREAM("Sensor profile: " <<
+                                        "stream_type: " << rs2_stream_to_string(video_profile.stream_type()) << "(" << video_profile.stream_index() << ")" <<
+                                        "Format: " << video_profile.format() <<
+                                        ", Width: " << video_profile.width() <<
+                                        ", Height: " << video_profile.height() <<
+                                        ", FPS: " << video_profile.fps());
                     if (profile.is_default())
                     {
                         default_profile = profile;
@@ -1338,7 +1345,7 @@ void BaseRealSenseNode::enable_devices()
             }
             if (!selected_profile)
             {
-                ROS_WARN_STREAM_COND((_width[elem]!=-1 && _height[elem]!=-1 && _fps[elem]!=-1), "Given stream configuration is not supported by the device! " <<
+                ROS_WARN_STREAM_COND((_width[elem]!=-1 || _height[elem]!=-1 || _fps[elem]!=-1), "Given stream configuration is not supported by the device! " <<
                     " Stream: " << rs2_stream_to_string(elem.first) <<
                     ", Stream Index: " << elem.second <<
                     ", Width: " << _width[elem] <<
@@ -1347,7 +1354,7 @@ void BaseRealSenseNode::enable_devices()
                     ", Format: " << ((_format.find(elem.first) == _format.end())? "None":rs2_format_to_string(rs2_format(_format[elem.first]))));
                 if (default_profile)
                 {
-                    ROS_WARN_STREAM_COND((_width[elem]!=-1 && _height[elem]!=-1 && _fps[elem]!=-1), "Using default profile instead.");
+                    ROS_WARN_STREAM_COND((_width[elem]!=-1 || _height[elem]!=-1 || _fps[elem]!=-1), "Using default profile instead.");
                     selected_profile = default_profile;
                 }
             }
@@ -2050,7 +2057,7 @@ rclcpp::Time BaseRealSenseNode::frameSystemTimeSec(rs2::frame frame)
     if (frame.get_frame_timestamp_domain() == RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK)
     {
         double elapsed_camera_ns = (/*ms*/ frame.get_timestamp() - /*ms*/ _camera_time_base) * 1e6;
-#ifdef GALACTIC
+#if defined(GALACTIC) || defined(ROLLING)
         rclcpp::Duration elapsed_camera(rclcpp::Duration::from_nanoseconds(elapsed_camera_ns));
 #else
         rclcpp::Duration elapsed_camera(elapsed_camera_ns);
@@ -2159,13 +2166,6 @@ void BaseRealSenseNode::updateStreamCalibData(const rs2::video_stream_profile& v
         }
     }
 
-    if (intrinsic.model == RS2_DISTORTION_KANNALA_BRANDT4)
-    {
-        _camera_info[stream_index].distortion_model = "equidistant";
-    } else {
-        _camera_info[stream_index].distortion_model = "plumb_bob";
-    }
-
     // set R (rotation matrix) values to identity matrix
     _camera_info[stream_index].r.at(0) = 1.0;
     _camera_info[stream_index].r.at(1) = 0.0;
@@ -2177,8 +2177,17 @@ void BaseRealSenseNode::updateStreamCalibData(const rs2::video_stream_profile& v
     _camera_info[stream_index].r.at(7) = 0.0;
     _camera_info[stream_index].r.at(8) = 1.0;
 
-    _camera_info[stream_index].d.resize(5);
-    for (int i = 0; i < 5; i++)
+    int coeff_size(5);
+    if (intrinsic.model == RS2_DISTORTION_KANNALA_BRANDT4)
+    {
+        _camera_info[stream_index].distortion_model = "equidistant";
+        coeff_size = 4;
+    } else {
+        _camera_info[stream_index].distortion_model = "plumb_bob";
+    }
+
+    _camera_info[stream_index].d.resize(coeff_size);
+    for (int i = 0; i < coeff_size; i++)
     {
         _camera_info[stream_index].d.at(i) = intrinsic.coeffs[i];
     }
