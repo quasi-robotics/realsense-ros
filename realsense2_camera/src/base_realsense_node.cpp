@@ -746,7 +746,7 @@ void BaseRealSenseNode::registerHDRoptions()
                 ROS_INFO_STREAM("Reading option: " << param_name);
                 int option_value = sensor.get_option(option);
                 int user_set_option_value = _node.declare_parameter(param_name, rclcpp::ParameterValue(option_value)).get<rclcpp::PARAMETER_INTEGER>();
-                _node.undeclare_parameter(param_name);
+                //_node.undeclare_parameter(param_name);
                 if (option_value != user_set_option_value)
                 {
                     ROS_INFO_STREAM("Set " << rs2_option_to_string(option) << " to " << user_set_option_value);
