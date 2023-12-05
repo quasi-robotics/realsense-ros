@@ -35,7 +35,7 @@ namespace realsense2_camera
     FrequencyDiagnostics(std::string name, int expected_frequency, std::shared_ptr<diagnostic_updater::Updater> updater):
             _name(name),
             _min_freq(expected_frequency), _max_freq(expected_frequency),
-            _freq_status_param(&_min_freq, &_max_freq, 0.1, 10),
+            _freq_status_param(&_min_freq, &_max_freq, 0.2, 10),
             _freq_status(_freq_status_param, _name),
             _p_updater(updater)
             {
@@ -46,7 +46,7 @@ namespace realsense2_camera
             _name(other._name),
             _min_freq(other._min_freq),
             _max_freq(other._max_freq),
-            _freq_status_param(&_min_freq, &_max_freq, 0.1, 10),
+            _freq_status_param(&_min_freq, &_max_freq, 0.2, 10),
             _freq_status(_freq_status_param, _name),
             _p_updater(other._p_updater)
             {
