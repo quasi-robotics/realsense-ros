@@ -1164,7 +1164,7 @@ void BaseRealSenseNode::publishMetadata(rs2::frame f, const rclcpp::Time& header
 void BaseRealSenseNode::startDiagnosticsUpdater() {
     std::string serial_no = _dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
     _diagnostics_updater = std::make_shared<diagnostic_updater::Updater>(&_node);
-    _diagnostics_updater->setHardwareID(serial_no);
+    //_diagnostics_updater->setHardwareID(serial_no);
     _diagnostics_updater->add("RealSense", [this](diagnostic_updater::DiagnosticStatusWrapper &status) {
         if (!_is_running) {
             status.summary(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "RealSense is disconnected");
