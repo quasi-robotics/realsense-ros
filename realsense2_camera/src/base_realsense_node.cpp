@@ -115,6 +115,11 @@ BaseRealSenseNode::BaseRealSenseNode(rclcpp::Node& node,
     _imu_sync_method(imu_sync_method::NONE),
     _is_profile_changed(false),
     _is_align_depth_changed(false)
+#if defined (ACCELERATE_GPU_WITH_GLSL)
+    ,_app(1280, 720, "RS_GLFW_Window"),
+    _accelerate_gpu_with_glsl(false),
+    _is_accelerate_gpu_with_glsl_changed(false)
+#endif
 {
     if ( use_intra_process )
     {
@@ -229,10 +234,15 @@ void BaseRealSenseNode::setupFilters()
         _cv_mpc.notify_one();
     };
 
-    _colorizer_filter = std::make_shared<NamedFilter>(std::make_shared<rs2::colorizer>(), _parameters, _logger); 
-    _filters.push_back(_colorizer_filter);
-
+#if defined (ACCELERATE_GPU_WITH_GLSL)
+    _colorizer_filter = std::make_shared<NamedFilter>(std::make_shared<rs2::gl::colorizer>(), _parameters, _logger); 
+    _pc_filter = std::make_shared<PointcloudFilter>(std::make_shared<rs2::gl::pointcloud>(), _node, _parameters, _logger);
+#else
+    _colorizer_filter = std::make_shared<NamedFilter>(std::make_shared<rs2::colorizer>(), _parameters, _logger);
     _pc_filter = std::make_shared<PointcloudFilter>(std::make_shared<rs2::pointcloud>(), _node, _parameters, _logger);
+#endif
+
+    _filters.push_back(_colorizer_filter);
     _filters.push_back(_pc_filter);
 
     _align_depth_filter = std::make_shared<AlignDepthFilter>(std::make_shared<rs2::align>(RS2_STREAM_COLOR), update_align_depth_func, _parameters, _logger);
@@ -698,8 +708,19 @@ void BaseRealSenseNode::updateProfilesStreamCalibData(const std::vector<rs2::str
 void BaseRealSenseNode::updateStreamCalibData(const rs2::video_stream_profile& video_profile)
 {
     stream_index_pair stream_index{video_profile.stream_type(), video_profile.stream_index()};
-    auto intrinsic = video_profile.get_intrinsics();
-    _stream_intrinsics[stream_index] = intrinsic;
+
+    rs2_intrinsics intrinsic;
+    try
+    {
+        intrinsic = video_profile.get_intrinsics();
+    }
+    catch(const std::exception& ex)
+    {
+        // e.g. infra1/infra2 in Y16i format (calibration mode) doesn't have intrinsics.
+        ROS_WARN_STREAM("No intrinsics available for this stream profile. Using zeroed intrinsics as default.");
+        intrinsic = { 0, 0, 0, 0, 0, 0, RS2_DISTORTION_NONE ,{ 0,0,0,0,0 } };
+    }
+
     _camera_info[stream_index].width = intrinsic.width;
     _camera_info[stream_index].height = intrinsic.height;
     _camera_info[stream_index].header.frame_id = OPTICAL_FRAME_ID(stream_index);
