@@ -1,3 +1,4 @@
+
 <h1 align="center">
    <img src="https://www.intelrealsense.com/wp-content/uploads/2020/09/intel-realsense-logo-360px.png" alt="Intel® RealSense™" title="Intel® RealSense™" />
 </h1>
@@ -24,7 +25,8 @@
 
 ## Table of contents
   * [ROS1 and ROS2 legacy](#ros1-and-ros2-legacy)
-  * [Installation](#installation)
+  * [Installation on Ubuntu](#installation-on-ubuntu)
+  * [Installation on Windows](#installation-on-windows)
   * [Usage](#usage)
      * [Starting the camera node](#start-the-camera-node)
      * [Camera name and namespace](#camera-name-and-camera-namespace)
@@ -78,7 +80,7 @@
 </details>
     
 
-# Installation
+# Installation on Ubuntu
   
 <details>
   <summary>
@@ -88,14 +90,14 @@
 - #### Ubuntu 22.04:
   - [ROS2 Iron](https://docs.ros.org/en/iron/Installation/Ubuntu-Install-Debians.html)
   - [ROS2 Humble](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html)
-    
 </details>
   
 <details>
   <summary>
     Step 2: Install latest Intel&reg; RealSense&trade; SDK 2.0
   </summary>
-  
+  **Please choose only one option from the 3 options below (in order to prevent multiple versions installation and workspace conflicts)**
+
 - #### Option 1: Install librealsense2 debian package from Intel servers
   - Jetson users - use the [Jetson Installation Guide](https://github.com/IntelRealSense/librealsense/blob/master/doc/installation_jetson.md)
   - Otherwise, install from [Linux Debian Installation Guide](https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md#installing-the-packages)
@@ -161,6 +163,76 @@
 
 <hr>
 
+# Installation on Windows
+  **PLEASE PAY ATTENTION: RealSense ROS2 Wrapper is not meant to be supported on Windows by our team, since ROS2 and its packages are still not fully supported over Windows. We added these installation steps below in order to try and make it easier for users who already started working with ROS2 on Windows and want to take advantage of the capabilities of our RealSense cameras**
+
+<details>
+  <summary>
+    Step 1: Install the ROS2 distribution 
+  </summary>
+  
+- #### Windows 10/11
+  **Please choose only one option from the two options below (in order to prevent multiple versions installation and workspace conflicts)**
+  - Manual install from ROS2 formal documentation:
+    - [ROS2 Iron](https://docs.ros.org/en/iron/Installation/Windows-Install-Binary.html)
+    - [ROS2 Humble](https://docs.ros.org/en/humble/Installation/Windows-Install-Binary.html)
+  - Microsoft IOT binary installation:
+    - https://ms-iot.github.io/ROSOnWindows/GettingStarted/SetupRos2.html
+    - Pay attention that the examples of install are for Foxy distro (which is not supported anymore by RealSense ROS2 Wrapper)
+	- Please replace the word "Foxy" with Humble or Iron, as you choose
+</details>
+  
+<details>
+  <summary>
+    Step 2: Download RealSense&trade; ROS2 Wrapper and RealSense&trade; SDK 2.0 source code from github:
+  </summary>
+  
+- Download Intel&reg; RealSense&trade; ROS2 Wrapper source code from [Intel&reg; RealSense&trade; ROS2 Wrapper Releases](https://github.com/IntelRealSense/realsense-ros/releases)
+- Download the corrosponding supported Intel&reg; RealSense&trade; SDK 2.0 source code from the **"Supported RealSense SDK" section** of the specific release you chose fronm the link above
+- Place the librealsense folder inside the realsense-ros folder, to make the librealsense package set beside realsense2_camera, realsense2_camera_msgs and realsense2_description packages
+</details>
+  
+<details>
+  <summary>
+    Step 3: Build
+  </summary>
+  
+1. Before starting building of our packages, make sure you have OpenCV for Windows installed on your machine. If you choose the Microsoft IOT way to install it, it will be installed automatically. Later, when colcon build, you might need to expose this installation folder by setting CMAKE_PREFIX_PATH, PATH, or OpenCV_DIR environment variables
+2. Run "x64 Native Tools Command Prompt for VS 2019" as administrator
+3. Setup ROS2 Environment (Do this for every new terminal/cmd you open):
+    - If you choose the Microsoft IOT Binary option for installation
+      ```
+	  > C:\opt\ros\humble\x64\setup.bat
+	  ```
+	
+    - If you choose the ROS2 formal documentation:
+      ```
+	  > call C:\dev\ros2_iron\local_setup.bat
+	  ```   
+4.  Change directory to realsense-ros folder
+      ```bash
+      > cd C:\ros2_ws\realsense-ros
+      ```
+5. Build librealsense2 package only
+      ```bash
+      > colcon build --packages-select librealsense2 --cmake-args -DBUILD_EXAMPLES=OFF -DBUILD_WITH_STATIC_CRT=OFF -DBUILD_GRAPHICAL_EXAMPLES=OFF
+      ```
+	  - User can add `--event-handlers console_direct+` parameter to see more debug outputs of the colcon build
+6. Build the other packages
+	```bash
+	> colcon build --packages-select realsense2_camera_msgs realsense2_description realsense2_camera
+	```
+	- User can add `--event-handlers console_direct+` parameter to see more debug outputs of the colcon build
+
+7. Setup environment with new installed packages (Do this for every new terminal/cmd you open):
+      ```bash
+      > call install\setup.bat
+      ```
+</details>
+
+<hr>
+
+
 # Usage
 
 ## Start the camera node
@@ -172,7 +244,7 @@
   
   #### with ros2 launch:
     ros2 launch realsense2_camera rs_launch.py
-    ros2 launch realsense2_camera rs_launch.py depth_module.profile:=1280x720x30 pointcloud.enable:=true
+    ros2 launch realsense2_camera rs_launch.py depth_module.depth_profile:=1280x720x30 pointcloud.enable:=true
 
 <hr>
 
@@ -251,10 +323,10 @@ User can set the camera name and camera namespace, to distinguish between camera
 #### Parameters that can be modified during runtime:
 - All of the filters and sensors inner parameters.
 - Video Sensor Parameters: (```depth_module``` and ```rgb_camera```)
-  - They have, at least, the **profile** parameter.
+  - They have, at least, the **<stream_type>_profile** parameter.
     - The profile parameter is a string of the following format: \<width>X\<height>X\<fps> (The dividing character can be X, x or ",". Spaces are ignored.)
-    - For example: ```depth_module.profile:=640x480x30 rgb_camera.profile:=1280x720x30```
-    - Since infra, infra1, infra2 and depth are all streams of the depth_module, their width, height and fps are defined by the same param **depth_module.profile**
+    - For example: ```depth_module.depth_profile:=640x480x30 depth_module.infra_profile:=640x480x30 rgb_camera.color_profile:=1280x720x30```
+    - Note: The param **depth_module.infra_profile** is common for all infra streams. i.e., infra 0, 1 & 2.
     - If the specified combination of parameters is not available by the device, the default or previously set configuration will be used.
       - Run ```ros2 param describe <your_node_name> <param_name>``` to get the list of supported profiles.
     - Note: Should re-enable the stream for the change to take effect.
