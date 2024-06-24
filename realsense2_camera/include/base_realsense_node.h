@@ -32,6 +32,10 @@
 #include "realsense2_camera_msgs/msg/metadata.hpp"
 #include "realsense2_camera_msgs/msg/rgbd.hpp"
 #include "realsense2_camera_msgs/srv/device_info.hpp"
+#include "realsense2_camera_msgs/srv/calib_config_read.hpp"
+#include "realsense2_camera_msgs/srv/calib_config_write.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "realsense2_camera_msgs/action/triggered_calibration.hpp"
 #include <librealsense2/hpp/rs_processing.hpp>
 #include <librealsense2/rs_advanced_mode.hpp>
 
@@ -118,6 +122,8 @@ namespace realsense2_camera
         void publishTopics();
 
     public:
+        using TriggeredCalibration = realsense2_camera_msgs::action::TriggeredCalibration;
+        using GoalHandleTriggeredCalibration = rclcpp_action::ServerGoalHandle<TriggeredCalibration>;
         enum class imu_sync_method{NONE, COPY, LINEAR_INTERPOLATION};
 
     protected:
@@ -150,6 +156,10 @@ namespace realsense2_camera
         std::vector<rs2_option> _monitor_options;
         rclcpp::Logger _logger;
         rclcpp::Service<realsense2_camera_msgs::srv::DeviceInfo>::SharedPtr _device_info_srv;
+        rclcpp::Service<realsense2_camera_msgs::srv::CalibConfigRead>::SharedPtr _calib_config_read_srv;
+        rclcpp::Service<realsense2_camera_msgs::srv::CalibConfigWrite>::SharedPtr _calib_config_write_srv;
+        rclcpp_action::Server<TriggeredCalibration>::SharedPtr _triggered_calibration_action_server;
+        
         std::shared_ptr<Parameters> _parameters;
         std::list<std::string> _parameters_names;
 
@@ -158,6 +168,16 @@ namespace realsense2_camera
         void calcAndAppendTransformMsgs(const rs2::stream_profile& profile, const rs2::stream_profile& base_profile);
         void getDeviceInfo(const realsense2_camera_msgs::srv::DeviceInfo::Request::SharedPtr req,
                                  realsense2_camera_msgs::srv::DeviceInfo::Response::SharedPtr res);
+        void CalibConfigReadService(const realsense2_camera_msgs::srv::CalibConfigRead::Request::SharedPtr req,
+                                 realsense2_camera_msgs::srv::CalibConfigRead::Response::SharedPtr res);
+        void CalibConfigWriteService(const realsense2_camera_msgs::srv::CalibConfigWrite::Request::SharedPtr req,
+                                 realsense2_camera_msgs::srv::CalibConfigWrite::Response::SharedPtr res);
+
+        rclcpp_action::GoalResponse TriggeredCalibrationHandleGoal(const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const TriggeredCalibration::Goal> goal);
+        rclcpp_action::CancelResponse TriggeredCalibrationHandleCancel(const std::shared_ptr<GoalHandleTriggeredCalibration> goal_handle);
+        void TriggeredCalibrationHandleAccepted(const std::shared_ptr<GoalHandleTriggeredCalibration> goal_handle);
+        void TriggeredCalibrationExecute(const std::shared_ptr<GoalHandleTriggeredCalibration> goal_handle);
+  
         tf2::Quaternion rotationMatrixToQuaternion(const float rotation[9]) const;
         void append_static_tf_msg(const rclcpp::Time& t,
                                const float3& trans,
@@ -263,6 +283,7 @@ namespace realsense2_camera
         void startUpdatedSensors();
         void stopRequiredSensors();
         void publishServices();
+        void publishActions();
         void startPublishers(const std::vector<rs2::stream_profile>& profiles, const RosSensor& sensor);
         void startRGBDPublisherIfNeeded();
         void stopPublishers(const std::vector<rs2::stream_profile>& profiles);
